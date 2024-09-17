@@ -1,0 +1,39 @@
+name: Mirror mtk-openwrt-feeds
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+    - cron: '0 12 * * *'
+  workflow_dispatch:
+
+jobs:
+  sync_repo:
+    runs-on: ubuntu-latest
+    steps:
+          
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY___mtk_openwrt_feeds }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+      
+      - name: Clone remote repository
+        run: |
+          git clone --mirror https://git01.mediatek.com/openwrt/feeds/mtk-openwrt-feeds /tmp/mtk-openwrt-feeds --progress --verbose
+
+      - name: Sync with remote repository
+        run: |
+          cd /tmp/mtk-openwrt-feeds
+          git remote add github git@github.com:bpi-r4-unofficial-group/mtk-openwrt-feeds.git
+          git fetch --all --prune --progress --verbose
+          git push --mirror github
+          git remote prune github
+
+      - name: Clean up local deleted branches
+        run: |
+          cd /tmp/mtk-openwrt-feeds
+          git fetch --prune github
+          git branch -r | grep 'origin/' | awk '{print $1}' | while read remote; do
+            git branch --list "${remote#origin/}" | grep -q . || git push github --delete "${remote#origin/}"
+          done
